@@ -1,6 +1,6 @@
 # Chatbot Telegram - Temperatura de Cidades
 
-Chatbot no Telegram que informa a temperatura atual de qualquer cidade do Brasil utilizando o node nativo OpenWeatherMap do N8N.
+Chatbot no Telegram que informa a temperatura atual de qualquer cidade do mundo utilizando a API OpenWeatherMap via HTTP Request no N8N.
 
 ## Funcionalidades
 
@@ -12,11 +12,15 @@ Chatbot no Telegram que informa a temperatura atual de qualquer cidade do Brasil
 ## Arquitetura do Workflow
 
 ```
-Telegram Trigger → Formatar Entrada → OpenWeather API → Validar Resposta
-                                                              │
-                              ┌───────────────────────────────┴───────────────────┐
-                              ↓ (TRUE - cod=200)                                  ↓ (FALSE)
-                        Code Fallback → Preparar Mensagem → Enviar Temperatura    Enviar Erro
+Telegram Trigger → Verificar Mensagem ──(inválida/saudação)──→ Enviar Ajuda
+                          │
+                    (cidade válida)
+                          ↓
+                   Formatar Entrada → OpenWeather API → Validar Resposta
+                                                               │
+                               ┌───────────────────────────────┴──────────────────┐
+                               ↓ (TRUE - cod=200)                                 ↓ (FALSE)
+                         Code Fallback → Enviar Temperatura              Enviar Erro
 ```
 
 ## Pré-requisitos
@@ -52,19 +56,21 @@ Telegram Trigger → Formatar Entrada → OpenWeather API → Validar Resposta
 - Clique no node **"Enviar Temperatura"** → selecione a credencial
 - Clique no node **"Enviar Erro"** → selecione a credencial
 
-#### OpenWeatherMap API (Variável de Ambiente)
+#### OpenWeatherMap API (Credencial Nativa do N8N)
 
-Este workflow utiliza o node **HTTP Request** que lê a API Key diretamente das variáveis de ambiente para maior flexibilidade.
+Este workflow utiliza o sistema de credenciais nativo do N8N para armazenar a API Key com segurança.
 
-1. Acesse [openweathermap.org](https://openweathermap.org/)
-2. Crie uma conta gratuita e copie sua API Key
-3. No seu ambiente N8N (arquivo .env ou variáveis de ambiente do container), adicione:
-   ```bash
-   OPENWEATHER_API_KEY=sua_chave_aqui
-   ```
-4. Reinicie o N8N para carregar a variável.
+1. Acesse [openweathermap.org](https://openweathermap.org/) e crie uma conta gratuita
+2. Copie sua **API Key**
+3. No N8N, vá em **Credentials → New Credential**
+4. Pesquise por **"Query Auth"**
+5. Configure:
+   - **Name:** `OpenWeather API Key`
+   - **Name** (campo do parâmetro): `appid`
+   - **Value:** `sua_chave_openweather`
+6. Salve e vincule ao node **"OpenWeather API"** no workflow
 
-> **Nota:** Se preferir, você pode abrir o node "OpenWeather API" no workflow e colar sua chave diretamente no parâmetro `appid`.
+> **Nota:** Chaves novas da OpenWeather podem demorar até 2 horas para ativar após o cadastro.
 
 ## Ativação do Workflow
 
@@ -81,7 +87,14 @@ São Paulo, SP
 
 **Resposta esperada:**
 ```
-🌤️ A temperatura em São Paulo é de 25°C.
+☀️ Clima em São Paulo, BR
+
+🌡 Temperatura: 25°C
+Max: 28°C   Min: 22°C
+Umidade: 65%
+Sensação térmica: 26°C
+
+Céu limpo
 ```
 
 ### Teste 2: Outras cidades
@@ -106,7 +119,9 @@ CidadeQueNaoExiste
 
 **Resposta esperada:**
 ```
-❌ Cidade não encontrada. Use o formato Cidade,UF (ex.: São Paulo,SP).
+Por favor, informe o nome de uma cidade para consultar o clima.
+
+Exemplo: São Paulo, SP ou Rio de Janeiro, RJ
 ```
 
 ## Estrutura dos Nodes
@@ -114,13 +129,14 @@ CidadeQueNaoExiste
 | Node | Função |
 |------|--------|
 | **Telegram Trigger** | Recebe mensagens do usuário |
+| **Verificar Mensagem** | Valida se o texto parece um nome de cidade (filtra saudações e comandos) |
 | **Formatar Entrada** | Extrai nome da cidade, converte para minúsculas e adiciona `,BR` |
-| **OpenWeather API** | Node HTTP Request que consulta a API OpenWeather (GET) |
+| **OpenWeather API** | HTTP Request que consulta a API OpenWeather (GET) com credencial Query Auth |
 | **Validar Resposta** | Verifica se `cod == 200` (sucesso) |
-| **Code Fallback** | Formata a mensagem com temperatura |
-| **Preparar Mensagem Final** | Prepara a mensagem para envio |
+| **Code Fallback** | Formata a mensagem com temperatura, emoji dinâmico e dados completos |
 | **Enviar Temperatura** | Envia resposta de sucesso via Telegram |
-| **Enviar Erro** | Envia mensagem de erro via Telegram |
+| **Enviar Ajuda** | Envia instrução de uso quando a mensagem não é uma cidade |
+| **Enviar Erro** | Envia mensagem de instrução quando a cidade não é encontrada |
 
 ## Detalhes Técnicos
 
@@ -158,12 +174,12 @@ const mensagemFallback = `🌤️ A temperatura em ${cidade} é de ${temp}°C.`;
 
 ### Credenciais N8N
 
-| Nome | Tipo | Campo Principal | Obrigatório |
-|------|------|-----------------|-------------|
-| Telegram account | `telegramApi` | `TELEGRAM_BOT_TOKEN` | Sim |
-| - | Env Var | `OPENWEATHER_API_KEY` | Sim |
+| Nome | Tipo | Obrigatório |
+|------|------|-------------|
+| `Telegram account` | `telegramApi` | Sim |
+| `OpenWeather API Key` | `httpQueryAuth` (Query Auth) | Sim |
 
-> **Importante:** A chave do OpenWeather é acessada via `{{ $env.OPENWEATHER_API_KEY }}`. Certifique-se de que a variável de ambiente esteja configurada.
+> **Importante:** Configure a credencial **Query Auth** com o parâmetro `appid` apontando para sua API Key da OpenWeather.
 
 ## Solução de Problemas
 
@@ -210,4 +226,4 @@ Este projeto é disponibilizado para fins educacionais.
 
 ---
 
-**Desenvolvido com N8N + Claude Code**
+**Desenvolvido com N8N**
